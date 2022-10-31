@@ -61,14 +61,18 @@ void playdelay(double pin, double note) {
 void playtremolo(double pin, double note) {
   if (!digitalRead(pin) == 1) {
     double n = 1;
-    double h = 0.01;
+    double h = 0.0594750782566;
     for (int i = 0; i < n; i++) {
+      
       tone(13, note, (1 / (4 * n)) * m);
       delay((1 / (4 * n)) * m);
+      
       tone(13, (1 - h) * note, (1 / (4 * n)) * m);
       delay((1 / (4 * n)) * m);
+      
       tone(13, note, (1 / (4 * n)) * m);
       delay((1 / (4 * n)) * m);
+      
       tone(13, (1 + h) * note, (1 / (4 * n)) * m);
       delay((1 / (4 * n)) * m);
     }
