@@ -1,0 +1,125 @@
+int m = 1000;
+double C4[] = { 12, 261.6 },
+Cd4[] = { 11, 277.2 },
+D4[] = { 10, 293.7 },
+Dd4[] = { 9, 311.1 },
+E4[] = { 8, 329.6 },
+F4[] = { 7, 349.2 },
+Fd4[] = { 6, 370 },
+G4[] = { 5, 392 },
+Gd4[] = { 4, 415.3 },
+a4[] = { 3, 440 },
+Ad4[] = { 2, 466.2 },
+B4[] = { 1, 493.9 },
+C5[] = { 0, 523.3 };
+bool b = 0;
+bool b1 = 0;
+bool b2 = 0;
+char mode = 'o';
+double k = 1;
+
+void setup() {
+  pinMode(13, OUTPUT);
+  pinMode(12, INPUT_PULLUP);
+  pinMode(11, INPUT_PULLUP);
+  pinMode(10, INPUT_PULLUP);
+  pinMode(9, INPUT_PULLUP);
+  pinMode(8, INPUT_PULLUP);
+  pinMode(7, INPUT_PULLUP);
+  pinMode(6, INPUT_PULLUP);
+  pinMode(5, INPUT_PULLUP);
+  pinMode(4, INPUT_PULLUP);
+  pinMode(3, INPUT_PULLUP);
+  pinMode(2, INPUT_PULLUP);
+  pinMode(1, INPUT_PULLUP);
+  pinMode(0, INPUT_PULLUP);
+  pinMode(A0, INPUT_PULLUP);
+  pinMode(A1, INPUT_PULLUP);
+  pinMode(A2, INPUT_PULLUP);
+  //Serial.begin(9600);
+}
+
+void playordinary(double pin, double note) {
+  if (!digitalRead(pin) == 1) {
+    tone(13, note, m);
+    delay(m);
+  }
+}
+
+void playdelay(double pin, double note) {
+  if (!digitalRead(pin) == 1) {
+    double n = 10;
+    for (int i = 0; i < n; i++) {
+      tone(13, note, (1 / (2 * n)) * m);
+      delay((1 / (2 * n)) * m);
+      digitalWrite(13, 0);
+      delay((1 / (2 * n)) * m);
+    }
+  }
+}
+
+void playtremolo(double pin, double note) {
+  if (!digitalRead(pin) == 1) {
+    double n = 1;
+    double h = 0.01;
+    for (int i = 0; i < n; i++) {
+      tone(13, note, (1 / (4 * n)) * m);
+      delay((1 / (4 * n)) * m);
+      tone(13, (1 - h) * note, (1 / (4 * n)) * m);
+      delay((1 / (4 * n)) * m);
+      tone(13, note, (1 / (4 * n)) * m);
+      delay((1 / (4 * n)) * m);
+      tone(13, (1 + h) * note, (1 / (4 * n)) * m);
+      delay((1 / (4 * n)) * m);
+    }
+  }
+}
+
+void play(double pin, double note, char mode) {
+  if (mode == 'o')
+    playordinary(pin, note);
+  if (mode == 'd')
+    playdelay(pin, note);
+  if (mode == 't')
+    playtremolo(pin, note);
+}
+
+void loop()
+{
+  if (!digitalRead(A0) == 1 && b == 0)
+    b = 1;
+  if (!digitalRead(A0) == 0 && b == 1) {
+    b = 0;
+    if (mode == 'o')
+      mode = 'd';
+    else if (mode == 'd')
+      mode = 't';
+    else if (mode == 't')
+      mode = 'o';
+  }
+  if (!digitalRead(A1) == 1 && b1 == 0)
+    b1 = 1;
+  if (!digitalRead(A1) == 0 && b1 == 1) {
+    b1 = 0;
+    k *= 0.5;
+  }
+  if (!digitalRead(A2) == 1 && b2 == 0)
+    b2 = 1;
+  if (!digitalRead(A2) == 0 && b2 == 1) {
+    b2 = 0;
+    k *= 2;
+  }
+  play(C4[0], k * C4[1], mode);
+  play(Cd4[0], k * Cd4[1], mode);
+  play(D4[0], k * D4[1], mode);
+  play(Dd4[0], k * Dd4[1], mode);
+  play(E4[0], k * E4[1], mode);
+  play(F4[0], k * F4[1], mode);
+  play(Fd4[0], k * Fd4[1], mode);
+  play(G4[0], k * G4[1], mode);
+  play(Gd4[0], k * Gd4[1], mode);
+  play(a4[0], k * a4[1], mode);
+  play(Ad4[0], k * Ad4[1], mode);
+  play(B4[0], k * B4[1], mode);
+  play(C5[0], k * C5[1], mode);
+}
