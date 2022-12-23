@@ -1,22 +1,56 @@
-int m = 1000;
-double C4[] = { 12, 261.6 },
-Cd4[] = { 11, 277.2 },
-D4[] = { 10, 293.7 },
-Dd4[] = { 9, 311.1 },
-E4[] = { 8, 329.6 },
-F4[] = { 7, 349.2 },
-Fd4[] = { 6, 370 },
-G4[] = { 5, 392 },
-Gd4[] = { 4, 415.3 },
-a4[] = { 3, 440 },
-Ad4[] = { 2, 466.2 },
-B4[] = { 1, 493.9 },
-C5[] = { 0, 523.3 };
-bool b = 0;
-bool b1 = 0;
-bool b2 = 0;
+#include <EEPROM.h>
+
+struct Note {
+  Note(unsigned pin, double tone) : pin(pin), tone(tone) {}
+  
+  unsigned pin;
+  double tone;
+};
+const Note C(12, 261.6);
+const Note Cd(11, 277.2);
+const Note D(10, 293.7);
+const Note Dd(9, 311.1);
+const Note E(8, 329.6);
+const Note f(7, 349.2);
+const Note Fd(6, 370);
+const Note G(5, 392);
+const Note Gd(4, 415.3);
+const Note A(3, 440);
+const Note Ad(2, 466.2);
+const Note B(0, 493.9);
+
+unsigned m = 1000;
+
+struct Note_from_Melody {
+  Note_from_Melody(double tone, unsigned time) : tone(tone), time(time) {}
+  
+  double tone;
+  unsigned time;
+};
+
+struct Melody {
+  Melody(Note_from_Melody* note, unsigned size) : note(note), size(size) {}
+  
+  Note_from_Melody* note;
+  unsigned size;
+};
+
+bool b0 = false;
+bool b1 = false;
+bool b2 = false;
+bool b3 = false;
+bool b4 = false;
 char mode = 'o';
-double k = 1;
+double octave_coef = 1;
+bool b_melody = false;
+
+bool b_record = false;
+bool b_playback = false;
+unsigned long time_record;
+unsigned ADDR;
+unsigned count;
+
+bool flag = false;
 
 void setup() {
   pinMode(13, OUTPUT);
@@ -31,69 +65,193 @@ void setup() {
   pinMode(4, INPUT_PULLUP);
   pinMode(3, INPUT_PULLUP);
   pinMode(2, INPUT_PULLUP);
-  pinMode(1, INPUT_PULLUP);
   pinMode(0, INPUT_PULLUP);
   pinMode(A0, INPUT_PULLUP);
   pinMode(A1, INPUT_PULLUP);
   pinMode(A2, INPUT_PULLUP);
-  //Serial.begin(9600);
+  pinMode(A3, INPUT_PULLUP);
+  pinMode(A4, INPUT_PULLUP);
+  Serial.begin(9600);
 }
 
-void playordinary(double pin, double note) {
-  if (!digitalRead(pin) == 1) {
-    tone(13, note, m);
-    delay(m);
+void playordinary(Note note, double octave_coef) {
+  if (!b_record) {
+    while (!digitalRead(note.pin) == HIGH)
+      tone(13, note.tone * octave_coef);
+    noTone(13);
   }
-}
-
-void playdelay(double pin, double note) {
-  if (!digitalRead(pin) == 1) {
-    double n = 10;
-    for (int i = 0; i < n; i++) {
-      tone(13, note, (1 / (2 * n)) * m);
-      delay((1 / (2 * n)) * m);
-      digitalWrite(13, 0);
-      delay((1 / (2 * n)) * m);
+  else {
+    if (!digitalRead(note.pin) == HIGH) {
+      if (count > 0) {
+        EEPROM.put(ADDR, Note_from_Melody(0, millis() - time_record));
+        count++;
+        ADDR += 10;
+      }
+      time_record = millis();
+      while (!digitalRead(note.pin) == HIGH)
+        tone(13, note.tone * octave_coef);
+      noTone(13);
+      EEPROM.put(ADDR, Note_from_Melody(note.tone * octave_coef, millis() - time_record));
+      count++;
+      ADDR += 10;
+      time_record = millis();
     }
   }
 }
 
-void playtremolo(double pin, double note) {
-  if (!digitalRead(pin) == 1) {
-    double n = 1;
-    double h = 0.0594750782566;
-    for (int i = 0; i < n; i++) {
-      
-      tone(13, note, (1 / (4 * n)) * m);
-      delay((1 / (4 * n)) * m);
-      
-      tone(13, (1 - h) * note, (1 / (4 * n)) * m);
-      delay((1 / (4 * n)) * m);
-      
-      tone(13, note, (1 / (4 * n)) * m);
-      delay((1 / (4 * n)) * m);
-      
-      tone(13, (1 + h) * note, (1 / (4 * n)) * m);
-      delay((1 / (4 * n)) * m);
-    }
+void playdelay(Note note, double octave_coef) {
+  unsigned n = 10;
+
+  while (!digitalRead(note.pin) == HIGH) {
+    tone(13, note.tone * octave_coef);
+    delay((1 / (2 * (double)n)) * m);
+    noTone(13);
+    delay((1 / (2 * (double)n)) * m);
   }
+  noTone(13);
 }
 
-void play(double pin, double note, char mode) {
+void playtremolo(Note note, double octave_coef) {
+  unsigned n = 5;
+  double h = 0.005;
+  
+  int i = 0;
+  int sign_i = 1;
+  while (!digitalRead(note.pin) == HIGH) {
+    tone(13, note.tone * octave_coef * (1 + i * h));
+    delay(m / (4 * n));
+    if (abs(i) == n)
+      sign_i *= -1;
+    i += sign_i;
+  }
+  noTone(13);
+}
+
+void play(Note note, double octave_coef, char mode) {
   if (mode == 'o')
-    playordinary(pin, note);
+    playordinary(note, octave_coef);
   if (mode == 'd')
-    playdelay(pin, note);
+    playdelay(note, octave_coef);
   if (mode == 't')
-    playtremolo(pin, note);
+    playtremolo(note, octave_coef);
 }
 
-void loop()
-{
-  if (!digitalRead(A0) == 1 && b == 0)
-    b = 1;
-  if (!digitalRead(A0) == 0 && b == 1) {
-    b = 0;
+Note_from_Melody array_for_nigthcall_couplet[] = { Note_from_Melody(E.tone, 0.375 * m),
+                                                   Note_from_Melody(A.tone, 0.375 * m),
+                                                   Note_from_Melody(C.tone * 2, 0.375 * m),
+                                                   Note_from_Melody(E.tone, 0.375 * m),
+                                                   Note_from_Melody(A.tone, 0.375 * m),
+                                                   Note_from_Melody(C.tone * 2, 0.375 * m),
+                                                   Note_from_Melody(E.tone, 0.375 * m),
+                                                   Note_from_Melody(A.tone, 0.375 * m),
+                                                  
+                                                   Note_from_Melody(D.tone, 0.375 * m),
+                                                   Note_from_Melody(G.tone, 0.375 * m),
+                                                   Note_from_Melody(B.tone, 0.375 * m),
+                                                   Note_from_Melody(D.tone, 0.375 * m),
+                                                   Note_from_Melody(G.tone, 0.375 * m),
+                                                   Note_from_Melody(B.tone, 0.375 * m),
+                                                   Note_from_Melody(D.tone, 0.375 * m),
+                                                   Note_from_Melody(G.tone, 0.375 * m),
+
+                                                   Note_from_Melody(C.tone, 0.375 * m),
+                                                   Note_from_Melody(f.tone, 0.375 * m),
+                                                   Note_from_Melody(A.tone, 0.375 * m),
+                                                   Note_from_Melody(C.tone, 0.375 * m),
+                                                   Note_from_Melody(f.tone, 0.375 * m),
+                                                   Note_from_Melody(A.tone, 0.375 * m),
+                                                   Note_from_Melody(C.tone, 0.375 * m),
+                                                   Note_from_Melody(f.tone, 0.375 * m),
+                                                  
+                                                   Note_from_Melody(D.tone, 0.375 * m),
+                                                   Note_from_Melody(f.tone, 0.375 * m),
+                                                   Note_from_Melody(A.tone, 0.375 * m),
+                                                   Note_from_Melody(D.tone, 0.375 * m),
+                                                   Note_from_Melody(f.tone, 0.375 * m),
+                                                   Note_from_Melody(A.tone, 0.375 * m),
+                                                   Note_from_Melody(D.tone, 0.375 * m),
+                                                   Note_from_Melody(f.tone, 0.375 * m) };
+unsigned nigthcall_couplet_size = 32;
+Melody nigthcall_couplet(array_for_nigthcall_couplet, nigthcall_couplet_size);
+Note_from_Melody array_for_nigthcall_chorus[] = { Note_from_Melody(f.tone, 0.375 * m),
+                                                  Note_from_Melody(A.tone, 0.375 * m),
+                                                  Note_from_Melody(C.tone * 2, 0.375 * m),
+                                                  Note_from_Melody(f.tone, 0.375 * m),
+                                                  Note_from_Melody(A.tone, 0.375 * m),
+                                                  Note_from_Melody(C.tone * 2, 0.375 * m * 2),
+                                          
+                                                  Note_from_Melody(G.tone, 0.375 * m * 2),
+                                                  Note_from_Melody(B.tone, 0.375 * m),
+                                                  Note_from_Melody(D.tone * 2, 0.375 * m),
+                                                  Note_from_Melody(G.tone, 0.375 * m),
+                                                  Note_from_Melody(B.tone, 0.375 * m),
+                                                  Note_from_Melody(D.tone * 2, 0.375 * m * 2),
+
+                                                  Note_from_Melody(E.tone, 0.375 * m * 2),
+                                                  Note_from_Melody(G.tone, 0.375 * m),
+                                                  Note_from_Melody(B.tone, 0.375 * m),
+                                                  Note_from_Melody(E.tone, 0.375 * m),
+                                                  Note_from_Melody(G.tone, 0.375 * m),
+                                                  Note_from_Melody(B.tone, 0.375 * m * 2),
+                                          
+                                                  Note_from_Melody(f.tone, 0.375 * m * 2),
+                                                  Note_from_Melody(A.tone, 0.375 * m),
+                                                  Note_from_Melody(C.tone * 2, 0.375 * m),
+                                                  Note_from_Melody(f.tone, 0.375 * m),
+                                                  Note_from_Melody(A.tone, 0.375 * m),
+                                                  Note_from_Melody(C.tone * 2, 0.375 * m * 2),
+                                                  Note_from_Melody(A.tone, 0.375 * m) };
+unsigned nigthcall_chorus_size = 25;
+Melody nigthcall_chorus(array_for_nigthcall_chorus, nigthcall_chorus_size);
+
+Note_from_Melody array_for_where_is_my_mind[] = { Note_from_Melody(E.tone, 0.5 * m),
+                                                  Note_from_Melody(Gd.tone, 0.5 * m),
+                                                  Note_from_Melody(E.tone, 0.5 * m),
+                                                  Note_from_Melody(Gd.tone, 0.5 * m),
+                                                  Note_from_Melody(E.tone, 0.5 * m),
+                                                  Note_from_Melody(Gd.tone, 0.5 * m),
+                                                  Note_from_Melody(E.tone, 0.5 * m),
+                                                  Note_from_Melody(Gd.tone, 0.5 * m),
+                                                  Note_from_Melody(Dd.tone, 0.5 * m),
+                                                  Note_from_Melody(Gd.tone, 0.5 * m),
+                                                  Note_from_Melody(Dd.tone, 0.5 * m),
+                                                  Note_from_Melody(Gd.tone, 0.5 * m),
+                                                  Note_from_Melody(E.tone, 0.5 * m),
+                                                  Note_from_Melody(E.tone, 0.25 * m),
+                                                  Note_from_Melody(Dd.tone, 0.25 * m),
+                                                  Note_from_Melody(E.tone, 0.5 * m),
+                                                  Note_from_Melody(E.tone, 0.25 * m),
+                                                  Note_from_Melody(Dd.tone, 0.25 * m) };
+unsigned where_is_my_mind_size = 18;
+Melody where_is_my_mind(array_for_where_is_my_mind, where_is_my_mind_size);
+
+void play_Melody(Melody melody) {
+  unsigned i = 0;
+  while (i < melody.size && b_melody) {
+    tone(13, melody.note[i].tone, melody.note[i].time);
+    delay(melody.note[i].time);
+    i++;
+  }
+}
+
+void yield() {
+  if (!digitalRead(A4) == HIGH && b4 == false)
+    b4 = true;
+  if (!digitalRead(A4) == LOW && b4 == true) {
+    b4 = false;
+    if (flag)
+      b_playback = false;
+    else
+      b_melody = false;
+    flag = !flag;
+  }
+}
+
+void loop() {
+  if (!digitalRead(A0) == HIGH && b0 == false)
+    b0 = true;
+  if (!digitalRead(A0) == LOW && b0 == true) {
+    b0 = false;
     if (mode == 'o')
       mode = 'd';
     else if (mode == 'd')
@@ -101,29 +259,78 @@ void loop()
     else if (mode == 't')
       mode = 'o';
   }
-  if (!digitalRead(A1) == 1 && b1 == 0)
-    b1 = 1;
-  if (!digitalRead(A1) == 0 && b1 == 1) {
-    b1 = 0;
-    k *= 0.5;
+  if (!digitalRead(A1) == HIGH && b1 == false)
+    b1 = true;
+  if (!digitalRead(A1) == LOW && b1 == true) {
+    b1 = false;
+    octave_coef *= 0.5;
   }
-  if (!digitalRead(A2) == 1 && b2 == 0)
-    b2 = 1;
-  if (!digitalRead(A2) == 0 && b2 == 1) {
-    b2 = 0;
-    k *= 2;
+  if (!digitalRead(A2) == HIGH && b2 == false)
+    b2 = true;
+  if (!digitalRead(A2) == LOW && b2 == true) {
+    b2 = false;
+    octave_coef *= 2;
   }
-  play(C4[0], k * C4[1], mode);
-  play(Cd4[0], k * Cd4[1], mode);
-  play(D4[0], k * D4[1], mode);
-  play(Dd4[0], k * Dd4[1], mode);
-  play(E4[0], k * E4[1], mode);
-  play(F4[0], k * F4[1], mode);
-  play(Fd4[0], k * Fd4[1], mode);
-  play(G4[0], k * G4[1], mode);
-  play(Gd4[0], k * Gd4[1], mode);
-  play(a4[0], k * a4[1], mode);
-  play(Ad4[0], k * Ad4[1], mode);
-  play(B4[0], k * B4[1], mode);
-  play(C5[0], k * C5[1], mode);
+
+  if (!digitalRead(A3) == HIGH && b3 == false)
+    b3 = true;
+  if (!digitalRead(A3) == LOW && b3 == true) {
+    b3 = false;
+    b_record = !b_record;
+    if (b_record) {
+      ADDR = 2;
+      count = 0;
+      time_record = millis();
+      flag = true;
+    }
+    else {
+      EEPROM.put(ADDR, Note_from_Melody(0, millis() - time_record));
+      count++;
+      EEPROM.put(0, count);
+    }
+}
+  if (!digitalRead(A4) == HIGH && b4 == false)
+    b4 = true;
+  if (!digitalRead(A4) == LOW && b4 == true) {
+    b4 = false;
+    if (flag)
+      b_playback = true;
+    else
+      b_melody = true;
+  }
+  
+  if (b_playback) {
+    EEPROM.get(0, count);
+    unsigned i;
+    Note_from_Melody playback_note(0, 0);
+    while (b_playback) {
+      ADDR = 2;
+      i = 0;
+      while (i < count && b_playback) {
+        EEPROM.get(ADDR, playback_note);
+        tone(13, playback_note.tone, playback_note.time);
+        delay(playback_note.time);
+        ADDR += 10;
+        i++;
+      }
+      noTone(13);
+    }
+  }
+  while (b_melody) {
+    play_Melody(nigthcall_couplet);
+    play_Melody(nigthcall_chorus);
+  }
+
+  play(C, octave_coef, mode);
+  play(Cd, octave_coef, mode);
+  play(D, octave_coef, mode);
+  play(Dd, octave_coef, mode);
+  play(E, octave_coef, mode);
+  play(f, octave_coef, mode);
+  play(Fd, octave_coef, mode);
+  play(G, octave_coef, mode);
+  play(Gd, octave_coef, mode);
+  play(A, octave_coef, mode);
+  play(Ad, octave_coef, mode);
+  play(B, octave_coef, mode);
 }
